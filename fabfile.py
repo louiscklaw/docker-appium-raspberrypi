@@ -18,10 +18,14 @@ env.hosts = [RUNNING_HOST]
 # https://tinklabs.atlassian.net/wiki/spaces/ENG/pages/67829777/setup+test+environment+on+linux
 
 PROJ_HOME = 'docker-appium-raspberrypi'
+REMOTE_DOCKER_FILE_DIR = '/home/docker-files'
+
 LOCAL_DIR, REMOTE_DIR = (
     '/home/logic/_workspace/docker-files/' + PROJ_HOME,
-    '/home/testuser/' + PROJ_HOME
+    REMOTE_DOCKER_FILE_DIR + '/' + PROJ_HOME
 )
+
+git_repo_URL = 'https://github.com/louiscklaw/docker-appium-raspberrypi.git'
 
 
 env.user = 'pi'
@@ -256,25 +260,17 @@ def set_time_zone(timezone='Asia/Hong_Kong'):
 
 @task
 def docker_compose_rebuild():
-    DOCKER_FILE_DIR = '/home/docker-files'
-    rsync('docker-files/', DOCKER_FILE_DIR)
     print(green('build runner'))
-    with cd(DOCKER_FILE_DIR + '/runner'):
-        run('docker build .')
-
-    with cd(DOCKER_FILE_DIR):
-        run('docker-compose build')
-
-    with settings(warn_only=True):
-        run('docker kill $(docker ps -q -a)')
-        run('docker rm $(docker ps -q -a)')
-
-    with cd(DOCKER_FILE_DIR + '/runner'):
+    with cd(REMOTE_DIR + '/docker-files/runner'):
         run('docker build . --tag logickee/raspberrypi-runner')
 
-    with cd(DOCKER_FILE_DIR):
+    with cd(REMOTE_DIR + '/docker-files'), settings(warn_only=True):
         run('docker-compose build')
-        run('docker-compose up -d --scale appium_runner=12 --remove-orphans')
+        run('docker-compose up -d --scale appium_runner=6 --remove-orphans')
+
+    # with settings(warn_only=True):
+        # run('docker kill $(docker ps -q -a)')
+        # run('docker rm $(docker ps -q -a)')
 
 
 @task
@@ -301,3 +297,29 @@ def up():
     slim_down_raspberry()
     install_tools()
     install_docker()
+
+
+def get_current_branch():
+    current_branch = local("git branch | sed -n '/\* /s///p'", capture=True)
+    return current_branch
+
+
+@task
+def push_image():
+    with cd(REMOTE_DIR + '/docker-files/runner'):
+        run('docker push')
+
+
+@task
+def test():
+    with lcd(LOCAL_DIR):
+        current_branch = get_current_branch()
+        local('git push')
+        with cd(REMOTE_DOCKER_FILE_DIR):
+            run('rm -rf %s' % PROJ_HOME)
+            run('git clone %s' % git_repo_URL)
+
+        with cd(REMOTE_DIR):
+            run('git checkout -f develop')
+
+    docker_compose_rebuild()
