@@ -274,7 +274,7 @@ def docker_compose_rebuild():
 
     with cd(DOCKER_FILE_DIR):
         run('docker-compose build')
-        run('docker-compose up -d --scale appium_runner=4 --remove-orphans')
+        run('docker-compose up -d --scale appium_runner=12 --remove-orphans')
 
 
 @task
