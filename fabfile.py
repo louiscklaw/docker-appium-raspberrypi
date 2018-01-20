@@ -54,4 +54,100 @@ def rsync():
         running_host=RUNNING_HOST,
         cmd_exclude=cmd_exclude_param
     ))
+<<<<<<< Updated upstream
     sleep(1)
+=======
+
+
+@task
+def clear_wkdir():
+    sudo('rm -rf %s' % REMOTE_DIR)
+
+
+@task
+def inject_wpa_supplicant(SSID, PASSWORD):
+    """sudo fab inject_wpa_supplicant:<SSID>,<PASSWORD>"""
+
+    # wpa_passphrase "testing" "testingPassword" >> /etc/wpa_supplicant/wpa_supplicant.conf
+    WK_DIR = '/mnt/2'
+    wpa_supplicant_path = os.path.sep.join(
+        [WK_DIR, 'etc/wpa_supplicant/wpa_supplicant.conf']
+    )
+    command = 'wpa_passphrase "{ssid}" "{password}" >> {wpa_file_path}'.format(
+        ssid=SSID,
+        password=PASSWORD,
+        wpa_file_path=wpa_supplicant_path
+    )
+
+    wpa_supplicant_dir = os.path.dirname(wpa_supplicant_path)
+
+    with cd(wpa_supplicant_path):
+        local(command)
+
+
+@task
+def pi_enable_ssh():
+    WK_DIR = '/mnt/1'
+    command = 'touch /mnt/1/ssh'
+    with cd(WK_DIR):
+        local(command)
+
+
+@task
+def pi_expand_disk():
+    sudo('raspi-config --expand-rootfs')
+
+
+@task
+def set_time_zone(timezone='Asia/Hong_Kong'):
+    print(green('setting up timezone'))
+    string_timezone = os.path.sep.join(['/usr/share/zoneinfo', timezone])
+    sudo('rm -rf /etc/localtime')
+    sudo('ln -sf %s /etc/localtime' % string_timezone)
+    sudo('service syslog restart')
+    sudo('date')
+
+
+@task
+def docker_compose_rebuild():
+    DOCKER_FILE_DIR = '/home/docker-files'
+    rsync('docker-files/', DOCKER_FILE_DIR)
+    print(green('build runner'))
+
+    with settings(warn_only=True):
+        run('docker kill $(docker ps -q -a)')
+        run('docker rm $(docker ps -q -a)')
+
+    with cd(DOCKER_FILE_DIR + '/runner'):
+        run('docker build . --tag logickee/raspberrypi-runner')
+
+    with cd(DOCKER_FILE_DIR):
+        run('docker-compose build')
+        run('docker-compose up -d --scale appium_runner=4 --remove-orphans')
+
+
+@task
+def slim_down_raspberry():
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep x11 | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep sound | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gnome | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep lxde | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gtk | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep desktop | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gstreamer | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep avahi | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep dbus | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep freetype | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep penguinspuzzle | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xkb-data | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xdg | sed s/install//`')
+    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep shared-mime-info | sed s/install//`')
+    sudo('apt-get -y autoremove')
+
+
+@task
+def up():
+    slim_down_raspberry()
+    install_tools()
+    install_docker()
+>>>>>>> Stashed changes
