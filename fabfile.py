@@ -195,6 +195,14 @@ def make_wkdir(username):
         username=username,
         remote_dir=REMOTE_DIR
     ))
+    local('rsync -rz  {cmd_exclude}  {source_dir}/ {as_user}@{running_host}:{remote_dir}'.format(
+        source_dir=LOCAL_DIR,
+        remote_dir=REMOTE_DIR,
+        as_user=env.user,
+        running_host=RUNNING_HOST,
+        cmd_exclude=cmd_exclude_param
+    ))
+    sleep(1)
 
 
 @task
@@ -256,6 +264,19 @@ def docker_compose_rebuild():
 
     with cd(DOCKER_FILE_DIR):
         run('docker-compose build')
+
+    with settings(warn_only=True):
+        run('docker kill $(docker ps -q -a)')
+        run('docker rm $(docker ps -q -a)')
+
+    with cd(DOCKER_FILE_DIR + '/runner'):
+        run('docker build . --tag logickee/raspberrypi-runner')
+
+    with cd(DOCKER_FILE_DIR):
+        run('docker-compose build')
+        run('docker-compose up -d --scale appium_runner=4 --remove-orphans')
+
+
 @task
 def slim_down_raspberry():
     sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep x11 | sed s/install//`')
@@ -273,7 +294,6 @@ def slim_down_raspberry():
     sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xdg | sed s/install//`')
     sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep shared-mime-info | sed s/install//`')
     sudo('apt-get -y autoremove')
-
 
 
 @task
