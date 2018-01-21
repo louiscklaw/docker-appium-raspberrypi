@@ -61,6 +61,22 @@ logging.getLogger("").addHandler(console)
 
 # init logging
 
+@task
+def rsync(input_local_dir=LOCAL_DIR, input_remote_dir=REMOTE_DIR):
+    """rsync for use with fabric"""
+
+    exclude_list = ['.git', '.vscode', '_ref']
+    cmd_exclude_param = ' '.join(['--exclude %s' % exclude_item for exclude_item in exclude_list])
+
+    rsync_project(
+        local_dir=input_local_dir + '/',
+        remote_dir=input_remote_dir,
+        exclude=exclude_list,
+        delete=True
+    )
+
+    sleep(1)
+
 
 def command_feeder(command):
     sudo(command)
@@ -183,22 +199,6 @@ def docker_pull(image):
     sudo('docker')
 
 
-@task
-def rsync(input_local_dir=LOCAL_DIR, input_remote_dir=REMOTE_DIR):
-    """rsync for use with fabric"""
-
-    exclude_list = ['.git', '.vscode', '_ref']
-    cmd_exclude_param = ' '.join(['--exclude %s' % exclude_item for exclude_item in exclude_list])
-
-    rsync_project(
-        local_dir=input_local_dir + '/',
-        remote_dir=input_remote_dir,
-        exclude=exclude_list,
-        delete=True
-    )
-
-    sleep(1)
-
 
 @task
 def make_wkdir(username):
@@ -221,26 +221,6 @@ def make_wkdir(username):
 def clear_wkdir():
     sudo('rm -rf %s' % REMOTE_DIR)
 
-
-@task
-def inject_wpa_supplicant(SSID, PASSWORD):
-    """sudo fab inject_wpa_supplicant:<SSID>,<PASSWORD>"""
-
-    # wpa_passphrase "testing" "testingPassword" >> /etc/wpa_supplicant/wpa_supplicant.conf
-    WK_DIR = '/mnt/2'
-    wpa_supplicant_path = os.path.sep.join(
-        [WK_DIR, 'etc/wpa_supplicant/wpa_supplicant.conf']
-    )
-    command = 'wpa_passphrase "{ssid}" "{password}" >> {wpa_file_path}'.format(
-        ssid=SSID,
-        password=PASSWORD,
-        wpa_file_path=wpa_supplicant_path
-    )
-
-    wpa_supplicant_dir = os.path.dirname(wpa_supplicant_path)
-
-    with cd(wpa_supplicant_path):
-        local(command)
 
 
 @task
@@ -328,8 +308,11 @@ class self_configuration:
         'boot':'1',
         'data':'2'
     }
-    def get_dev_partition_name(dev_name, hahaha):
-        return dev_name+self_configuration.sd_card_partition_name[hahaha]
+    def __init__(self, dev_name):
+        self.dev = dev_name
+
+    def get_dev_partition_name(self, hahaha):
+        return self.dev+self_configuration.sd_card_partition_name[hahaha]
 
 class mounting_operation:
     def __init__(self, dev):
@@ -361,6 +344,7 @@ class cls_prepare_sd_card(
         def __init__(self, dev_name):
             self.dev_name = dev_name
             self.temp_mount_dir = cls_prepare_sd_card.TEMP_MOUNT.name
+            super()
 
         def __enter__(self):
 
@@ -380,14 +364,13 @@ class cls_prepare_sd_card(
     def __init__(self, dev_name):
         self.dev = dev_name
 
-
     def pi_enable_ssh(self):
         """running on the assumption that the image got sdx1 and sdx2 while extracting image on the sdcard
         """
         print(self_configuration.text_status('enabling ssh'))
         with cls_prepare_sd_card(self.dev).mount_with_temp_dir(
-            self_configuration.get_dev_partition_name(self.dev,'boot')
-            ) as temp_wkdir:
+            self.get_dev_partition_name('boot')
+        ) as temp_wkdir:
 
             command = 'touch %s' % os.path.sep.join([
                 temp_wkdir, 'ssh'
@@ -399,7 +382,7 @@ class cls_prepare_sd_card(
     def set_time_zone(self,timezone='Asia/Hong_Kong'):
         print(self_configuration.text_status('setting up timezone'))
         with cls_prepare_sd_card(self.dev).mount_with_temp_dir(
-            self_configuration.get_dev_partition_name(self.dev,'data')
+            self.get_dev_partition_name('data')
             ) as temp_wkdir:
             timezone_path = os.path.sep.join([
                 temp_wkdir,'usr/share/zoneinfo', timezone])
@@ -409,8 +392,28 @@ class cls_prepare_sd_card(
 
             local('rm -rf %s' % localtime_path)
             local('ln -sf %s %s' % (localtime_path, timezone_path))
-            local('service syslog restart')
-            local('date')
+        return self
+
+
+
+    def inject_wpa_supplicant(self, SSID, PASSWORD):
+        """sudo fab inject_wpa_supplicant:<SSID>,<PASSWORD>"""
+        print(self_configuration.text_status('injecting wifi configuraion'))
+
+        # wpa_passphrase "testing" "testingPassword" >> /etc/wpa_supplicant/wpa_supplicant.conf
+        with cls_prepare_sd_card(self.dev).mount_with_temp_dir(
+            self.get_dev_partition_name('data')
+            ) as temp_wkdir:
+
+            wpa_supplicant_path = os.path.sep.join(
+                [temp_wkdir, 'etc/wpa_supplicant/wpa_supplicant.conf']
+            )
+            command = 'wpa_passphrase "{ssid}" "{password}" >> {wpa_file_path}'.format(
+                ssid=SSID,
+                password=PASSWORD,
+                wpa_file_path=wpa_supplicant_path
+            )
+            local(command)
 
 
 @task
@@ -421,11 +424,15 @@ def prepare_sd_card(dev_sd_card):
 
 @task
 def init_configuration(dev_sd_card):
+    wifi_ssid = os.getenv('WIFI_SSID','')
+    wifi_pass = os.getenv('WIFI_PASS','')
+
     print(cls_prepare_sd_card.text_status('post configuration'))
     cls_prepare_sd_card(dev_sd_card).\
         umount_all().\
         pi_enable_ssh().\
-        set_time_zone()
+        set_time_zone().\
+        inject_wpa_supplicant(wifi_ssid, wifi_pass)
 
 @task
 def init_rpi_sdcard(dev_sd_card):
