@@ -248,15 +248,6 @@ def pi_expand_disk():
     sudo('raspi-config --expand-rootfs')
 
 
-@task
-def set_time_zone(timezone='Asia/Hong_Kong'):
-    print(green('setting up timezone'))
-    string_timezone = os.path.sep.join(['/usr/share/zoneinfo', timezone])
-    sudo('rm -rf /etc/localtime')
-    sudo('ln -sf %s /etc/localtime' % string_timezone)
-    sudo('service syslog restart')
-    sudo('date')
-
 
 @task
 def docker_compose_rebuild():
@@ -325,7 +316,7 @@ def test():
     docker_compose_rebuild()
 
 
-class cls_prepare_sd_card:
+class self_configuration:
     text_status = green
     text_warning = yellow
     text_error = red
@@ -333,10 +324,38 @@ class cls_prepare_sd_card:
     RPI_IMAGE = os.path.sep.join([
         CWD, 'image/2017-11-29-raspbian-stretch-lite.img'
     ])
+    sd_card_partition_name = {
+        'boot':'1',
+        'data':'2'
+    }
+    def get_dev_partition_name(dev_name, hahaha):
+        return dev_name+self_configuration.sd_card_partition_name[hahaha]
+
+class mounting_operation:
+    def __init__(self, dev):
+        self.dev = dev
+
+    def umount_all(self):
+        with settings(warn_only=True):
+            for i in range(5 + 1, 0, -1):
+                print(green('unmounting devices'))
+                dev_string = self.dev + str(i)
+                local('umount %s' % dev_string)
+        return self
+
+
+class cls_prepare_sd_card(
+    mounting_operation, self_configuration
+    ):
 
     def __init__(self, dev):
         self.dev = dev
-        pass
+        self.mounting_operation = mounting_operation(dev)
+
+    def extract_rpi_image(self):
+        cls_prepare_sd_card.text_status('extracting image')
+        local('dd if=%s of=%s' % (RPI_IMAGE, self.dev))
+        return self
 
     class mount_with_temp_dir:
         def __init__(self, dev_name):
@@ -358,18 +377,18 @@ class cls_prepare_sd_card:
                 local('sync')
                 local('sudo umount %s' % self.dev_name)
 
-    def umount_all(self):
-        with settings(warn_only=True):
-            for i in range(5 + 1, 0, -1):
-                print(green('unmounting devices'))
-                dev_string = self.dev + str(i)
-                local('umount %s' % dev_string)
-        return self
+    def __init__(self, dev_name):
+        self.dev = dev_name
+
 
     def pi_enable_ssh(self):
         """running on the assumption that the image got sdx1 and sdx2 while extracting image on the sdcard
         """
-        with cls_prepare_sd_card.mount_with_temp_dir(self.dev + '1') as temp_wkdir:
+        print(self_configuration.text_status('enabling ssh'))
+        with cls_prepare_sd_card(self.dev).mount_with_temp_dir(
+            self_configuration.get_dev_partition_name(self.dev,'boot')
+            ) as temp_wkdir:
+
             command = 'touch %s' % os.path.sep.join([
                 temp_wkdir, 'ssh'
             ])
@@ -377,10 +396,22 @@ class cls_prepare_sd_card:
 
         return self
 
-    def extract_rpi_image(self):
-        cls_prepare_sd_card.text_status('extracting image')
-        local('dd if=%s of=%s' % ( ,self.dev))
-        return self
+    def set_time_zone(self,timezone='Asia/Hong_Kong'):
+        print(self_configuration.text_status('setting up timezone'))
+        with cls_prepare_sd_card(self.dev).mount_with_temp_dir(
+            self_configuration.get_dev_partition_name(self.dev,'data')
+            ) as temp_wkdir:
+            timezone_path = os.path.sep.join([
+                temp_wkdir,'usr/share/zoneinfo', timezone])
+            localtime_path = os.path.sep.join([
+                temp_wkdir,'etc/localtime'
+            ])
+
+            local('rm -rf %s' % localtime_path)
+            local('ln -sf %s %s' % (localtime_path, timezone_path))
+            local('service syslog restart')
+            local('date')
+
 
 @task
 def prepare_sd_card(dev_sd_card):
@@ -389,8 +420,14 @@ def prepare_sd_card(dev_sd_card):
         extract_rpi_image()
 
 @task
-def init_configuration(dev_sd_card)
+def init_configuration(dev_sd_card):
     print(cls_prepare_sd_card.text_status('post configuration'))
     cls_prepare_sd_card(dev_sd_card).\
         umount_all().\
-        pi_enable_ssh()
+        pi_enable_ssh().\
+        set_time_zone()
+
+@task
+def init_rpi_sdcard(dev_sd_card):
+    prepare_sd_card(dev_sd_card)
+    init_configuration(dev_sd_card)
