@@ -1,5 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding:utf-8
+
 import os
 import sys
 import traceback
@@ -15,6 +16,11 @@ from fabric.contrib.project import *
 RUNNING_HOST = 'pi@192.168.88.180'
 env.user = 'testuser'
 env.hosts = [RUNNING_HOST]
+
+
+CWD = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(CWD)
+
 
 # NOTE:
 # https://tinklabs.atlassian.net/wiki/spaces/ENG/pages/67829777/setup+test+environment+on+linux
@@ -324,6 +330,9 @@ class cls_prepare_sd_card:
     text_warning = yellow
     text_error = red
     TEMP_MOUNT = tempfile.TemporaryDirectory(dir='/mnt')
+    RPI_IMAGE = os.path.sep.join([
+        CWD, 'image/2017-11-29-raspbian-stretch-lite.img'
+    ])
 
     def __init__(self, dev):
         self.dev = dev
@@ -358,23 +367,30 @@ class cls_prepare_sd_card:
         return self
 
     def pi_enable_ssh(self):
+        """running on the assumption that the image got sdx1 and sdx2 while extracting image on the sdcard
+        """
         with cls_prepare_sd_card.mount_with_temp_dir(self.dev + '1') as temp_wkdir:
             command = 'touch %s' % os.path.sep.join([
                 temp_wkdir, 'ssh'
             ])
             local(command)
+
         return self
 
-    def pour_image(self):
+    def extract_rpi_image(self):
         cls_prepare_sd_card.text_status('extracting image')
-        local('dd if=/home/logic/_workspace/docker-files/docker-appium-raspberrypi/image/2017-11-29-raspbian-stretch-lite.img of=%s' % self.dev)
+        local('dd if=%s of=%s' % ( ,self.dev))
         return self
-
 
 @task
 def prepare_sd_card(dev_sd_card):
     print(cls_prepare_sd_card.text_status('preparing sdcard'))
     cls_prepare_sd_card(dev_sd_card).\
+        extract_rpi_image()
+
+@task
+def init_configuration(dev_sd_card)
+    print(cls_prepare_sd_card.text_status('post configuration'))
+    cls_prepare_sd_card(dev_sd_card).\
         umount_all().\
-        pour_image().\
         pi_enable_ssh()
