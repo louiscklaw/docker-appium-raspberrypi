@@ -22,6 +22,14 @@ CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(CWD)
 
 
+# NOTE: ㊙ ️FILES for cooking the sdcard
+SSH_PUB_KEY_FILE=os.path.sep.join([
+    CWD,'_files','ssh_key','id_rsa.pub'
+])
+RPI_AUTH_KEY_FILENAME='authorized_keys'
+DOT_SSH_PATH ='home/pi/.ssh'
+
+
 # NOTE:
 # https://tinklabs.atlassian.net/wiki/spaces/ENG/pages/67829777/setup+test+environment+on+linux
 
@@ -34,7 +42,6 @@ LOCAL_DIR, REMOTE_DIR = (
 )
 
 git_repo_URL = 'https://github.com/louiscklaw/docker-appium-raspberrypi.git'
-
 
 env.user = 'pi'
 env.password = 'raspberry'
@@ -82,30 +89,7 @@ def command_feeder(command):
     sudo(command)
 
 
-def apt_install(sw_list):
-    for sw in sw_list:
-        logging.info('install %s' % sw)
-        command_feeder('apt install -y --no-install-recommends {sw}'.format(sw=sw))
 
-
-def pip_install(pip_list):
-    for pip_wanted in pip_list:
-        logging.info('install %s' % pip_wanted)
-        command_feeder('pip3 install {pip_wanted}'.format(pip_wanted=pip_wanted))
-
-
-def apt_recipe():
-    sudo('apt update')
-    apt_install([
-        'git',
-        'android-tools-adb',
-        'tmux',
-        'python3',
-        'python3-pip',
-        'unzip', 'rsync',
-        'htop', 'glances'
-    ])
-    sudo('apt clean')
 
     # apt_verify([
     #     'python3 --version',
@@ -118,22 +102,11 @@ def apt_recipe():
     # ])
 
 
-@task
-def pip_recipe():
-    pip_install([
-        'pipenv'
-    ])
 
     # pip_verify(
     #     ['pipenv --version']
     # )
 
-
-@task
-def install_tools():
-    with hide('output'):
-        apt_recipe()
-        pip_recipe()
 
 
 @task
@@ -244,24 +217,6 @@ def docker_compose_rebuild():
         # run('docker rm $(docker ps -q -a)')
 
 
-@task
-def slim_down_raspberry():
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep x11 | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep sound | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gnome | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep lxde | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gtk | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep desktop | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gstreamer | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep avahi | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep dbus | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep freetype | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep penguinspuzzle | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xkb-data | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xdg | sed s/install//`')
-    sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep shared-mime-info | sed s/install//`')
-    sudo('apt-get -y autoremove')
-
 
 @task
 def up():
@@ -302,7 +257,7 @@ class self_configuration:
     text_error = red
     TEMP_MOUNT = tempfile.TemporaryDirectory(dir='/mnt')
     RPI_IMAGE = os.path.sep.join([
-        CWD, 'image/2017-11-29-raspbian-stretch-lite.img'
+        CWD,'_files','image/2017-11-29-raspbian-stretch-lite.img'
     ])
     sd_card_partition_name = {
         'boot':'1',
@@ -316,12 +271,72 @@ class self_configuration:
     def get_dev_partition_name(self, hahaha):
         return self.dev+self_configuration.sd_card_partition_name[hahaha]
 
+class rpi_init:
+    def __init__(self):
+        pass
+
+    def apt_install(self, sw_list):
+        for sw in sw_list:
+            logging.info('install %s' % sw)
+            command_feeder('apt install -y --no-install-recommends {sw}'.format(sw=sw))
+
+
+    def apt_recipe(self):
+        sudo('apt update')
+        self.apt_install([
+            'git',
+            'android-tools-adb',
+            'tmux',
+            'python3',
+            'python3-pip',
+            'unzip', 'rsync',
+            'htop', 'glances'
+        ])
+        sudo('apt clean')
+
+
+    def pip_install(self,pip_list):
+        for pip_wanted in pip_list:
+            logging.info('install %s' % pip_wanted)
+            command_feeder('pip3 install {pip_wanted}'.format(pip_wanted=pip_wanted))
+
+    def pip_recipe(self):
+        self.pip_install([
+            'pipenv'
+        ])
+
+    def install_tools(self):
+        with hide('output'):
+            self.apt_recipe()
+            self.pip_recipe()
+        return self
+
+    def slim_down_raspberry(self):
+        with settings(warn_only=True),hide('stdout','stderr'):
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep x11 | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep sound | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gnome | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep lxde | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gtk | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep desktop | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gstreamer | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep avahi | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep dbus | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep freetype | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep penguinspuzzle | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xkb-data | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xdg | sed s/install//`')
+            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep shared-mime-info | sed s/install//`')
+            sudo('apt-get -y autoremove')
+        return self
+
+
 class mounting_operation:
     def __init__(self, dev):
         self.dev = dev
 
     def umount_all(self):
-        with settings(warn_only=True):
+        with settings(warn_only=True),hide('output','stderr','stdout'):
             for i in range(5 + 1, 0, -1):
                 print(green('unmounting devices'))
                 dev_string = self.dev + str(i)
@@ -339,7 +354,7 @@ class cls_prepare_sd_card(
 
     def extract_rpi_image(self):
         cls_prepare_sd_card.text_status('extracting image')
-        local('dd if=%s of=%s' % (RPI_IMAGE, self.dev))
+        local('dd if=%s of=%s' % (self_configuration.RPI_IMAGE, self.dev))
         return self
 
     class mount_with_temp_dir:
@@ -417,12 +432,36 @@ class cls_prepare_sd_card(
             )
             local(command)
 
+        return self
+
+    def import_ssh_key(self):
+        print(self_configuration.text_status('importing pub key'))
+        with cls_prepare_sd_card(self.dev).mount_with_temp_dir(
+            self.get_dev_partition_name('data')
+            ) as temp_wkdir:
+
+            RPI_DOT_SSH_PATH = os.path.sep.join([
+                temp_wkdir,DOT_SSH_PATH
+            ])
+            AUTH_PUB_KEY_PATH=os.path.sep.join([
+                RPI_DOT_SSH_PATH,RPI_AUTH_KEY_FILENAME
+            ])
+
+
+            local('mkdir -p %s' % os.path.dirname(os.path.abspath(
+                AUTH_PUB_KEY_PATH
+            )))
+            local('cp %s %s' % (SSH_PUB_KEY_FILE, AUTH_PUB_KEY_PATH))
+
+        return self
+
 
 @task
 def prepare_sd_card(dev_sd_card):
     print(cls_prepare_sd_card.text_status('preparing sdcard'))
     cls_prepare_sd_card(dev_sd_card).\
         extract_rpi_image()
+
 
 @task
 def init_configuration(dev_sd_card, WIFI_SSID, WIFI_PASS):
@@ -433,9 +472,20 @@ def init_configuration(dev_sd_card, WIFI_SSID, WIFI_PASS):
             pi_enable_ssh().\
             set_time_zone().\
             inject_wpa_supplicant(
-                WIFI_SSID, WIFI_PASS)
+                WIFI_SSID, WIFI_PASS).\
+            import_ssh_key()
 
 @task
-def init_rpi_sdcard(dev_sd_card, WIFI_SSID, WIFI_PASS):
+def cook_docker_compose():
+    pass
+
+@task
+def cook_rpi_sdcard(dev_sd_card, WIFI_SSID, WIFI_PASS):
         prepare_sd_card(dev_sd_card)
         init_configuration(dev_sd_card, WIFI_SSID, WIFI_PASS)
+
+@task
+def cook_rpi_node():
+    """to init the rpi after sdcard inserted"""
+    rpi_init().slim_down_raspberry().\
+        install_tools()
