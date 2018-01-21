@@ -12,6 +12,7 @@ from time import sleep
 from fabric.api import *
 from fabric.colors import *
 from fabric.contrib.project import *
+from fabric.contrib.files import *
 
 RUNNING_HOST = 'pi@192.168.88.180'
 env.user = 'testuser'
@@ -38,7 +39,7 @@ REMOTE_DOCKER_FILE_DIR = '/home/docker-files'
 
 LOCAL_DIR, REMOTE_DIR = (
     '/home/logic/_workspace/docker-files/' + PROJ_HOME,
-    REMOTE_DOCKER_FILE_DIR + '/' + PROJ_HOME
+    REMOTE_DOCKER_FILE_DIR  +'/'+ PROJ_HOME
 )
 
 git_repo_URL = 'https://github.com/louiscklaw/docker-appium-raspberrypi.git'
@@ -75,12 +76,13 @@ def rsync(input_local_dir=LOCAL_DIR, input_remote_dir=REMOTE_DIR):
     exclude_list = ['.git', '.vscode', '_ref']
     cmd_exclude_param = ' '.join(['--exclude %s' % exclude_item for exclude_item in exclude_list])
 
-    rsync_project(
-        local_dir=input_local_dir + '/',
-        remote_dir=input_remote_dir,
-        exclude=exclude_list,
-        delete=True
-    )
+    # rsync_project(
+    #     local_dir=input_local_dir ,
+    #     remote_dir=input_remote_dir,
+    #     exclude=exclude_list,
+    #     delete=True
+    # )
+    put(input_local_dir, input_remote_dir)
 
     sleep(1)
 
@@ -130,7 +132,7 @@ class cls_docker:
         sudo('curl -sSL https://get.docker.com | sh')
         # https://docs.docker.com/compose/install/#install-compose
         print(self_configuration.text_status('getting docker-compose'))
-        sudo('apt-get -y install python-pip')
+        sudo('apt-get -y install python python-pip')
         sudo('pip install docker-compose')
 
         run('docker --version')
@@ -146,11 +148,11 @@ class cls_docker:
 
     def docker_compose_rebuild(self):
         print(self_configuration.text_status('build runner'))
-        with cd(REMOTE_DIR + '/docker-files/runner'):
-            run('docker build . --tag logickee/raspberrypi-runner')
+        # with cd(REMOTE_DOCKER_FILE_DIR + '/runner'):
+        #     run('docker build . --tag logickee/raspberrypi-runner')
 
-        with cd(REMOTE_DIR + '/docker-files'), settings(warn_only=True):
-            run('docker-compose build')
+        with cd(REMOTE_DOCKER_FILE_DIR), settings(warn_only=True):
+            run('docker-compose pull')
             run('docker-compose up -d --scale appium_runner=6 --remove-orphans')
         return self
 
@@ -179,8 +181,6 @@ class self_configuration:
 class rpi_init:
     def __init__(self):
         pass
-
-
 
     # def make_wkdir(username):
     #     sudo('mkdir -p %s' % REMOTE_DIR)
@@ -216,23 +216,23 @@ class rpi_init:
         sudo('apt update')
         self.apt_install([
             'git',
-            'android-tools-adb',
+            'android-tools-adb','android-tools-fastboot',
             'tmux',
-            'python3',
-            'python3-pip',
+            'python3', 'python3-pip',
+            'python', 'python-pip',
             'unzip', 'rsync',
             'htop', 'glances'
         ])
         sudo('apt clean')
 
 
-    def pip_install(self,pip_list):
+    def global_pip_install(self,pip_list):
         for pip_wanted in pip_list:
             print(self_configuration.text_status('install %s' % pip_wanted))
             sudo('pip3 install {pip_wanted}'.format(pip_wanted=pip_wanted))
 
     def pip_recipe(self):
-        self.pip_install([
+        self.global_pip_install([
             'pipenv'
         ])
 
@@ -243,21 +243,27 @@ class rpi_init:
         return self
 
     def slim_down_raspberry(self):
+        sw_to_remove = ["avahid",
+                        "dbusd",
+                        "desktopd",
+                        "freetyped",
+                        "gnomed",
+                        "gstreamerd",
+                        "gtkd",
+                        "lxded",
+                        "penguinspuzzled",
+                        "shared-mime-infod",
+                        "soundd",
+                        "x11d",
+                        "xdgd",
+                        "xkb-datad"]
+
         with settings(warn_only=True),hide('stdout','stderr'):
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep x11 | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep sound | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gnome | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep lxde | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gtk | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep desktop | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep gstreamer | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep avahi | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep dbus | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep freetype | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep penguinspuzzle | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xkb-data | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep xdg | sed s/install//`')
-            sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep shared-mime-info | sed s/install//`')
+            for sw in sw_to_remove:
+                sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "{sw}" | grep x11 | sed s/install//`'.format(
+                    sw=sw
+                ))
+
             sudo('apt-get -y autoremove')
         return self
 
@@ -291,6 +297,33 @@ class rpi_init:
             ))
 
 
+
+    def install_my_dotfiles(self):
+        """ Copies down my dotfiles repository from GitHub.
+        Installs only those files which might be relevant to the Raspberry Pi.
+        See http://github.com/moopet/dotfiles
+        """
+        puts(green("Installing dotfiles"))
+        dotfiles = (
+            ".vimrc",
+            ".ackrc",
+            ".htoprc",
+            ".gitignore",
+            ".gitconfig",
+            ".fonts",  # patched font for vim-powerline
+            ".tmux.conf",
+        )
+        with hide("output", "running"), cd("/tmp"):
+            if dir_exists("dotfiles"):
+                with cd("dotfiles"):
+                    run("git pull")
+            else:
+                run("git clone git://github.com/moopet/dotfiles.git")
+            for f in dotfiles:
+                puts("{i} {f}".format(i=INDENT, f=f))
+                run("cp -r dotfiles/{} ~/".format(f))
+
+        return self
 class mounting_operation:
     def __init__(self, dev):
         self.dev = dev
@@ -438,7 +471,9 @@ def cook_rpi_sdcard(dev_sd_card, WIFI_SSID, WIFI_PASS):
 @task
 def cook_rpi_node():
     """to init the rpi after sdcard inserted"""
-    rpi_init().slim_down_raspberry().\
+    rpi_init().\
+        pi_expand_disk().\
+        slim_down_raspberry().\
         install_tools()
 
 
