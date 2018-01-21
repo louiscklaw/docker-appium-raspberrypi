@@ -84,147 +84,6 @@ def rsync(input_local_dir=LOCAL_DIR, input_remote_dir=REMOTE_DIR):
 
     sleep(1)
 
-
-def command_feeder(command):
-    sudo(command)
-
-
-
-
-    # apt_verify([
-    #     'python3 --version',
-    #     'pip3 --version',
-    #     'tmux -V',
-    #     'adb version',
-    #     'fastboot --version',
-    #     'git --version'
-
-    # ])
-
-
-
-    # pip_verify(
-    #     ['pipenv --version']
-    # )
-
-
-
-@task
-def user_del(username):
-    user_home_dir = '/home/' + username
-    env.use_sudo = True
-    run('id')
-
-    if username not in ['']:
-        with settings(warn_only=True):
-            sudo('userdel {username}'.format(username=username))
-            sudo('groupdel {username}'.format(username=username))
-            sudo('rm -rf %s' % user_home_dir)
-
-
-@task
-def user_add(username):
-    user_home_dir = '/home/' + username
-    env.use_sudo = True
-    run('id')
-
-    if username not in ['']:
-        sudo('groupadd -g 1009 {username}'.format(username=username))
-        sudo('useradd -u 1009 -g {username} -G users,staff,sudo -d /home/{username} -s /bin/bash -p p4$$W0R9 {username}'.format(username=username))
-        sudo('mkdir %s' % user_home_dir)
-        sudo('chmod 775 %s' % user_home_dir)
-        sudo('chown {username}:{username} {user_home_dir}'.format(
-            username=username,
-            user_home_dir=user_home_dir
-        ))
-
-
-@task
-def install_docker(list_of_users_tobein_docker_group=['pi']):
-    print(green('getting docker'))
-    sudo('curl -sSL https://get.docker.com | sh')
-    # https://docs.docker.com/compose/install/#install-compose
-    print(green('getting docker-compose'))
-    sudo('apt-get -y install python-pip')
-    sudo('pip install docker-compose')
-
-    run('docker --version')
-    run('docker-compose --version')
-
-    print(green('putting pi into docker group'))
-    for user in list_of_users_tobein_docker_group:
-        sudo('usermod -aG docker %s' % user)
-
-    print(green('Done', True))
-
-
-@task
-def put_docker_files():
-    with settings(warn_only=True):
-        sudo('mkdir /home/docker-files')
-        sudo('chown pi:pi /home/docker-files')
-        sudo('chmod 775 /home/docker-files')
-    rsync('docker-files/', '/home/docker-files')
-
-
-@task
-def docker_pull(image):
-    sudo('docker')
-
-
-
-@task
-def make_wkdir(username):
-    sudo('mkdir -p %s' % REMOTE_DIR)
-    sudo('chown {username}:{username} {remote_dir}'.format(
-        username=username,
-        remote_dir=REMOTE_DIR
-    ))
-    local('rsync -rz  {cmd_exclude}  {source_dir}/ {as_user}@{running_host}:{remote_dir}'.format(
-        source_dir=LOCAL_DIR,
-        remote_dir=REMOTE_DIR,
-        as_user=env.user,
-        running_host=RUNNING_HOST,
-        cmd_exclude=cmd_exclude_param
-    ))
-    sleep(1)
-
-
-@task
-def clear_wkdir():
-    sudo('rm -rf %s' % REMOTE_DIR)
-
-
-
-@task
-def pi_expand_disk():
-    sudo('raspi-config --expand-rootfs')
-
-
-
-@task
-def docker_compose_rebuild():
-    print(green('build runner'))
-    with cd(REMOTE_DIR + '/docker-files/runner'):
-        run('docker build . --tag logickee/raspberrypi-runner')
-
-    with cd(REMOTE_DIR + '/docker-files'), settings(warn_only=True):
-        run('docker-compose build')
-        run('docker-compose up -d --scale appium_runner=6 --remove-orphans')
-
-    # with settings(warn_only=True):
-        # run('docker kill $(docker ps -q -a)')
-        # run('docker rm $(docker ps -q -a)')
-
-
-
-@task
-def up():
-    slim_down_raspberry()
-    install_tools()
-    install_docker()
-
-
 def get_current_branch():
     current_branch = local("git branch | sed -n '/\* /s///p'", capture=True)
     return current_branch
@@ -237,7 +96,7 @@ def push_image():
 
 
 @task
-def test():
+def git_push_remote_pull():
     with lcd(LOCAL_DIR):
         current_branch = get_current_branch()
         local('git push')
@@ -251,19 +110,65 @@ def test():
     docker_compose_rebuild()
 
 
+class cls_docker:
+    def __init__(self):
+        pass
+
+
+    def put_docker_files(self):
+        print(self_configuration.text_status('creating docker workspace'))
+        with settings(warn_only=True):
+            sudo('mkdir /home/docker-files')
+            sudo('chown pi:pi /home/docker-files')
+            sudo('chmod 775 /home/docker-files')
+        rsync('docker-files/', '/home/docker-files')
+        return self
+
+
+    def install_docker(self, list_of_users_tobein_docker_group=['pi']):
+        print(self_configuration.text_status('install docker'))
+        sudo('curl -sSL https://get.docker.com | sh')
+        # https://docs.docker.com/compose/install/#install-compose
+        print(self_configuration.text_status('getting docker-compose'))
+        sudo('apt-get -y install python-pip')
+        sudo('pip install docker-compose')
+
+        run('docker --version')
+        run('docker-compose --version')
+
+        print(self_configuration.text_status('putting pi into docker group'))
+        for user in list_of_users_tobein_docker_group:
+            sudo('usermod -aG docker %s' % user)
+
+        print(self_configuration.text_status('Done', True))
+        return self
+
+
+    def docker_compose_rebuild(self):
+        print(self_configuration.text_status('build runner'))
+        with cd(REMOTE_DIR + '/docker-files/runner'):
+            run('docker build . --tag logickee/raspberrypi-runner')
+
+        with cd(REMOTE_DIR + '/docker-files'), settings(warn_only=True):
+            run('docker-compose build')
+            run('docker-compose up -d --scale appium_runner=6 --remove-orphans')
+        return self
+
+
 class self_configuration:
     text_status = green
     text_warning = yellow
     text_error = red
+
     TEMP_MOUNT = tempfile.TemporaryDirectory(dir='/mnt')
     RPI_IMAGE = os.path.sep.join([
         CWD,'_files','image/2017-11-29-raspbian-stretch-lite.img'
     ])
+
     sd_card_partition_name = {
         'boot':'1',
         'data':'2'
     }
-
 
     def __init__(self, dev_name):
         self.dev = dev_name
@@ -275,10 +180,36 @@ class rpi_init:
     def __init__(self):
         pass
 
+
+
+    # def make_wkdir(username):
+    #     sudo('mkdir -p %s' % REMOTE_DIR)
+    #     sudo('chown {username}:{username} {remote_dir}'.format(
+    #         username=username,
+    #         remote_dir=REMOTE_DIR
+    #     ))
+    #     local('rsync -rz  {cmd_exclude}  {source_dir}/ {as_user}@{running_host}:{remote_dir}'.format(
+    #         source_dir=LOCAL_DIR,
+    #         remote_dir=REMOTE_DIR,
+    #         as_user=env.user,
+    #         running_host=RUNNING_HOST,
+    #         cmd_exclude=cmd_exclude_param
+    #     ))
+    #     sleep(1)
+
+
+
+    # def clear_wkdir():
+    #     sudo('rm -rf %s' % REMOTE_DIR)
+
+
+    def pi_expand_disk():
+        sudo('raspi-config --expand-rootfs')
+
     def apt_install(self, sw_list):
         for sw in sw_list:
-            logging.info('install %s' % sw)
-            command_feeder('apt install -y --no-install-recommends {sw}'.format(sw=sw))
+            print(self_configuration.text_status('install %s' % sw))
+            sudo('apt install -y --no-install-recommends {sw}'.format(sw=sw))
 
 
     def apt_recipe(self):
@@ -297,8 +228,8 @@ class rpi_init:
 
     def pip_install(self,pip_list):
         for pip_wanted in pip_list:
-            logging.info('install %s' % pip_wanted)
-            command_feeder('pip3 install {pip_wanted}'.format(pip_wanted=pip_wanted))
+            print(self_configuration.text_status('install %s' % pip_wanted))
+            sudo('pip3 install {pip_wanted}'.format(pip_wanted=pip_wanted))
 
     def pip_recipe(self):
         self.pip_install([
@@ -329,6 +260,35 @@ class rpi_init:
             sudo('apt-get -y remove `sudo dpkg --get-selections | grep -v "deinstall" | grep shared-mime-info | sed s/install//`')
             sudo('apt-get -y autoremove')
         return self
+
+
+    def user_del(username):
+        user_home_dir = '/home/' + username
+        env.use_sudo = True
+        run('id')
+
+        if username not in ['']:
+            with settings(warn_only=True):
+                sudo('userdel {username}'.format(username=username))
+                sudo('groupdel {username}'.format(username=username))
+                sudo('rm -rf %s' % user_home_dir)
+
+
+
+    def user_add(username):
+        user_home_dir = '/home/' + username
+        env.use_sudo = True
+        run('id')
+
+        if username not in ['']:
+            sudo('groupadd -g 1009 {username}'.format(username=username))
+            sudo('useradd -u 1009 -g {username} -G users,staff,sudo -d /home/{username} -s /bin/bash -p p4$$W0R9 {username}'.format(username=username))
+            sudo('mkdir %s' % user_home_dir)
+            sudo('chmod 775 %s' % user_home_dir)
+            sudo('chown {username}:{username} {user_home_dir}'.format(
+                username=username,
+                user_home_dir=user_home_dir
+            ))
 
 
 class mounting_operation:
@@ -396,22 +356,20 @@ class cls_prepare_sd_card(
 
         return self
 
-    def set_time_zone(self,timezone='Asia/Hong_Kong'):
+    def set_time_zone(self, timezone='Asia/Hong_Kong'):
         print(self_configuration.text_status('setting up timezone'))
         with cls_prepare_sd_card(self.dev).mount_with_temp_dir(
             self.get_dev_partition_name('data')
-            ) as temp_wkdir:
+        ) as temp_wkdir:
             timezone_path = os.path.sep.join([
-                temp_wkdir,'usr/share/zoneinfo', timezone])
+                temp_wkdir, 'usr/share/zoneinfo', timezone])
             localtime_path = os.path.sep.join([
-                temp_wkdir,'etc/localtime'
+                temp_wkdir, 'etc/localtime'
             ])
 
             local('rm -rf %s' % localtime_path)
             local('ln -sf %s %s' % (localtime_path, timezone_path))
         return self
-
-
 
     def inject_wpa_supplicant(self, SSID, PASSWORD):
         """sudo fab inject_wpa_supplicant:<SSID>,<PASSWORD>"""
@@ -456,28 +414,21 @@ class cls_prepare_sd_card(
         return self
 
 
-@task
 def prepare_sd_card(dev_sd_card):
     print(cls_prepare_sd_card.text_status('preparing sdcard'))
     cls_prepare_sd_card(dev_sd_card).\
         extract_rpi_image()
 
 
-@task
 def init_configuration(dev_sd_card, WIFI_SSID, WIFI_PASS):
-
-        print(cls_prepare_sd_card.text_status('post configuration'))
-        cls_prepare_sd_card(dev_sd_card).\
-            umount_all().\
-            pi_enable_ssh().\
-            set_time_zone().\
-            inject_wpa_supplicant(
-                WIFI_SSID, WIFI_PASS).\
-            import_ssh_key()
-
-@task
-def cook_docker_compose():
-    pass
+    print(cls_prepare_sd_card.text_status('post configuration'))
+    cls_prepare_sd_card(dev_sd_card).\
+        umount_all().\
+        pi_enable_ssh().\
+        set_time_zone().\
+        inject_wpa_supplicant(
+            WIFI_SSID, WIFI_PASS).\
+        import_ssh_key()
 
 @task
 def cook_rpi_sdcard(dev_sd_card, WIFI_SSID, WIFI_PASS):
@@ -489,3 +440,11 @@ def cook_rpi_node():
     """to init the rpi after sdcard inserted"""
     rpi_init().slim_down_raspberry().\
         install_tools()
+
+
+@task
+def cook_docker_compose():
+    cls_docker().\
+        install_docker().\
+        put_docker_files().\
+        docker_compose_rebuild()
