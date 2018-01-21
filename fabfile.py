@@ -5,6 +5,8 @@ import sys
 import traceback
 from pprint import pprint
 
+import tempfile
+
 from time import sleep
 from fabric.api import *
 from fabric.colors import *
@@ -236,14 +238,6 @@ def inject_wpa_supplicant(SSID, PASSWORD):
 
 
 @task
-def pi_enable_ssh():
-    WK_DIR = '/mnt/1'
-    command = 'touch /mnt/1/ssh'
-    with cd(WK_DIR):
-        local(command)
-
-
-@task
 def pi_expand_disk():
     sudo('raspi-config --expand-rootfs')
 
@@ -323,3 +317,64 @@ def test():
             run('git checkout -f develop')
 
     docker_compose_rebuild()
+
+
+class cls_prepare_sd_card:
+    text_status = green
+    text_warning = yellow
+    text_error = red
+    TEMP_MOUNT = tempfile.TemporaryDirectory(dir='/mnt')
+
+    def __init__(self, dev):
+        self.dev = dev
+        pass
+
+    class mount_with_temp_dir:
+        def __init__(self, dev_name):
+            self.dev_name = dev_name
+            self.temp_mount_dir = cls_prepare_sd_card.TEMP_MOUNT.name
+
+        def __enter__(self):
+
+            path_to_temp_mount = os.path.abspath(self.temp_mount_dir)
+
+            cls_prepare_sd_card.text_status('mounting dev')
+            local('mount  %s %s' % (self.dev_name, path_to_temp_mount))
+            self.active_temp_mount = path_to_temp_mount
+
+            return self.active_temp_mount
+
+        def __exit__(self, type, value, traceback):
+            if hasattr(self, 'active_temp_mount'):
+                local('sync')
+                local('sudo umount %s' % self.dev_name)
+
+    def umount_all(self):
+        with settings(warn_only=True):
+            for i in range(5 + 1, 0, -1):
+                print(green('unmounting devices'))
+                dev_string = self.dev + str(i)
+                local('umount %s' % dev_string)
+        return self
+
+    def pi_enable_ssh(self):
+        with cls_prepare_sd_card.mount_with_temp_dir(self.dev + '1') as temp_wkdir:
+            command = 'touch %s' % os.path.sep.join([
+                temp_wkdir, 'ssh'
+            ])
+            local(command)
+        return self
+
+    def pour_image(self):
+        cls_prepare_sd_card.text_status('extracting image')
+        local('dd if=/home/logic/_workspace/docker-files/docker-appium-raspberrypi/image/2017-11-29-raspbian-stretch-lite.img of=%s' % self.dev)
+        return self
+
+
+@task
+def prepare_sd_card(dev_sd_card):
+    print(cls_prepare_sd_card.text_status('preparing sdcard'))
+    cls_prepare_sd_card(dev_sd_card).\
+        umount_all().\
+        pour_image().\
+        pi_enable_ssh()
