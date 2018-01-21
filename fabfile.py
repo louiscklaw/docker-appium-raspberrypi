@@ -308,6 +308,8 @@ class self_configuration:
         'boot':'1',
         'data':'2'
     }
+
+
     def __init__(self, dev_name):
         self.dev = dev_name
 
@@ -423,18 +425,17 @@ def prepare_sd_card(dev_sd_card):
         extract_rpi_image()
 
 @task
-def init_configuration(dev_sd_card):
-    wifi_ssid = os.getenv('WIFI_SSID','')
-    wifi_pass = os.getenv('WIFI_PASS','')
+def init_configuration(dev_sd_card, WIFI_SSID, WIFI_PASS):
 
-    print(cls_prepare_sd_card.text_status('post configuration'))
-    cls_prepare_sd_card(dev_sd_card).\
-        umount_all().\
-        pi_enable_ssh().\
-        set_time_zone().\
-        inject_wpa_supplicant(wifi_ssid, wifi_pass)
+        print(cls_prepare_sd_card.text_status('post configuration'))
+        cls_prepare_sd_card(dev_sd_card).\
+            umount_all().\
+            pi_enable_ssh().\
+            set_time_zone().\
+            inject_wpa_supplicant(
+                WIFI_SSID, WIFI_PASS)
 
 @task
-def init_rpi_sdcard(dev_sd_card):
-    prepare_sd_card(dev_sd_card)
-    init_configuration(dev_sd_card)
+def init_rpi_sdcard(dev_sd_card, WIFI_SSID, WIFI_PASS):
+        prepare_sd_card(dev_sd_card)
+        init_configuration(dev_sd_card, WIFI_SSID, WIFI_PASS)
