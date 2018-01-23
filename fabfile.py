@@ -22,6 +22,7 @@ LOCAL_DIR, REMOTE_DIR = (
     '/srv/docker-files/%s' % PROJ_HOME
 )
 
+
 @task
 def user_del(username):
     env.use_sudo = True
@@ -54,9 +55,7 @@ def rsync():
         running_host=RUNNING_HOST,
         cmd_exclude=cmd_exclude_param
     ))
-<<<<<<< Updated upstream
     sleep(1)
-=======
 
 
 @task
@@ -150,4 +149,32 @@ def up():
     slim_down_raspberry()
     install_tools()
     install_docker()
->>>>>>> Stashed changes
+
+
+def cook_slimdown():
+    """trim down the image for docker on rpi"""
+    rpi_init().\
+        slim_down_raspberry().\
+        user_add('logic')
+
+
+@task
+def cook_docker_container():
+    """download container image and build it on pi"""
+    cls_docker().\
+        put_docker_files().\
+        docker_compose_rebuild()
+
+
+@task
+def cook_add_user():
+    rpi_init().\
+        user_del('test_user').\
+        user_add('test_user', 'test_user').\
+        enable_empty_password('test_user')
+
+
+@task
+def build_docker_image():
+    with cd(REMOTE_DOCKER_FILE_DIR):
+        run('docker build --tag logickee/raspberrypi-runner runner/.')
