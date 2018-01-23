@@ -1,0 +1,92 @@
+version: '3'
+
+services:
+
+    appium_runner:
+        image: 'logickee/raspberrypi-runner'
+        privileged: true
+        volumes:
+          - /dev/bus/usb:/dev/bus/usb
+        restart: always
+
+        # networks:
+        #     - gitlab-network
+
+    # allure_report:
+    #     restart: always
+    #     build:
+    #         context: ./allure-report
+
+    #     ports:
+    #         - "5000:5000"
+    #     command: serve -p 5000 /_allure_result
+    #     volumes:
+    #         - allure-result-volume:/_allure_result
+
+    # gitlab:
+    #     container_name: gitlab
+    #     image: 'gitlab/gitlab-ce:latest'
+    #     restart: always
+    #     ports:
+    #         - "10080:80"
+    #         - "10022:22"
+    #     volumes:
+    #         #- /srv/gitlab/config:/etc/gitlab
+    #         #- /srv/gitlab/logs:/var/log/gitlab
+    #         - /srv/data/gitlab:/var/opt/gitlab
+    #         - $PWD/gitlab/gitlab.rb:/etc/gitlab/gitlab.rb
+    #     networks:
+    #         - gitlab-network
+
+    # gitlab_shell_runner:
+    #     build:
+    #         context: ./runner-container/appiumrunner
+    #         args:
+    #             EXECUTOR_TYPE: shell
+    #     networks:
+    #         - gitlab-network
+    #     volumes:
+    #         - allure-result-volume:/_allure_result
+
+    # behave_runner_api22:
+    #     build:
+    #         context: ./runner-container/behave-runner
+    #     networks:
+    #         - gitlab-network
+    #     volumes:
+    #         - allure-result-volume:/_allure_result
+
+    # behave_runner_api23:
+    #     build:
+    #         context: ./runner-container/behave-runner
+    #     networks:
+    #         - gitlab-network
+    #     volumes:
+    #         - allure-result-volume:/_allure_result
+
+    # behave_runner_api24:
+    #     build:
+    #         context: ./runner-container/behave-runner
+    #     networks:
+    #         - gitlab-network
+    #     volumes:
+    #         - allure-result-volume:/_allure_result
+
+    # behave_runner_api25:
+    #     container_name: behave_runner_api25
+    #     build:
+    #         context: ./runner-container/behave-runner
+    #     networks:
+    #         - gitlab-network
+    #     volumes:
+    #         - allure-result-volume:/_allure_result
+    #         - tmp_video:/tmp/video
+
+# networks:
+#     gitlab-network:
+#         external:
+#             name: gitlab-network
+
+# volumes:
+#     allure-result-volume:
+#     tmp_video:
