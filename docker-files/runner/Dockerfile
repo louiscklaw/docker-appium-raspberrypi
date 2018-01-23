@@ -14,7 +14,8 @@ RUN apt-get -qqy update && \
     wget \
     libqt5webkit5 \
     libgconf-2-4 \
-    xvfb
+    xvfb \
+    apt-utils
 
 
 # install appium

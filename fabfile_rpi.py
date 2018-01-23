@@ -8,6 +8,8 @@ from pprint import pprint
 
 import tempfile
 
+from crypt import crypt
+
 from time import sleep
 from fabric.api import *
 from fabric.colors import *
@@ -146,7 +148,15 @@ class rpi_init:
             sudo('apt-get -y autoremove')
         return self
 
-    def user_del(username):
+    def change_pi_password(self):
+        password = '123321'
+        user = 'pi'
+
+        crypted_password = crypt(password, 'salt')
+        sudo('usermod --password %s %s' % (crypted_password, user), pty=False)
+        return self
+
+    def user_del(self, username):
         user_home_dir = '/home/' + username
         env.use_sudo = True
         run('id')
@@ -157,7 +167,9 @@ class rpi_init:
                 sudo('groupdel {username}'.format(username=username))
                 sudo('rm -rf %s' % user_home_dir)
 
-    def user_add(username):
+        return self
+
+    def user_add(self, username, password):
         user_home_dir = '/home/' + username
         env.use_sudo = True
         run('id')
@@ -171,6 +183,11 @@ class rpi_init:
                 username=username,
                 user_home_dir=user_home_dir
             ))
+            sudo('echo -e "{password}\n{password}" | passwd {username}'.format(
+                username=username,
+                password=password
+            ))
+        return self
 
     def install_my_dotfiles(self):
         """ Copies down my dotfiles repository from GitHub.
@@ -199,10 +216,12 @@ class rpi_init:
 
         return self
 
+    def enable_empty_password(self, username):
+        sudo('echo "{username} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/099_{username}-nopasswd'.format(username=username))
+        return self
 
-class cls_prepare_sd_card(
-    mounting_operation, self_configuration
-):
+
+class cls_prepare_sd_card(mounting_operation, self_configuration):
 
     def __init__(self, dev):
         self.dev = dev

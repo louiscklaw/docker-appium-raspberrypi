@@ -1,6 +1,28 @@
 version: '3'
 
 services:
+
+    appium_runner:
+        image: 'logickee/raspberrypi-runner'
+        privileged: true
+        volumes:
+          - /dev/bus/usb:/dev/bus/usb
+        restart: always
+
+        # networks:
+        #     - gitlab-network
+
+    # allure_report:
+    #     restart: always
+    #     build:
+    #         context: ./allure-report
+
+    #     ports:
+    #         - "5000:5000"
+    #     command: serve -p 5000 /_allure_result
+    #     volumes:
+    #         - allure-result-volume:/_allure_result
+
     # gitlab:
     #     container_name: gitlab
     #     image: 'gitlab/gitlab-ce:latest'
@@ -59,26 +81,6 @@ services:
     #     volumes:
     #         - allure-result-volume:/_allure_result
     #         - tmp_video:/tmp/video
-
-    appium_runner:
-        image: 'logickee/raspberrypi-runner'
-        privileged: true
-        volumes:
-          - /dev/bus/usb:/dev/bus/usb
-
-        # networks:
-        #     - gitlab-network
-
-    # allure_report:
-    #     restart: always
-    #     build:
-    #         context: ./allure-report
-
-    #     ports:
-    #         - "5000:5000"
-    #     command: serve -p 5000 /_allure_result
-    #     volumes:
-    #         - allure-result-volume:/_allure_result
 
 # networks:
 #     gitlab-network:
