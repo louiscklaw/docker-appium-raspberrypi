@@ -16,32 +16,10 @@ from fabric.colors import *
 from fabric.contrib.project import *
 from fabric.contrib.files import *
 from fabric.operations import *
-
+from fabfile_common import *
 
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(CWD)
-
-
-class self_configuration:
-    text_status = green
-    text_warning = yellow
-    text_error = red
-
-    TEMP_MOUNT = tempfile.TemporaryDirectory(dir='/home/logic/_temp')
-    RPI_IMAGE = os.path.sep.join([
-        CWD, '_files', 'image/2017-11-29-raspbian-stretch-lite.img'
-    ])
-
-    sd_card_partition_name = {
-        'boot': '1',
-        'data': '2'
-    }
-
-    def __init__(self, dev_name):
-        self.dev = dev_name
-
-    def get_dev_partition_name(self, hahaha):
-        return self.dev + self_configuration.sd_card_partition_name[hahaha]
 
 
 class mounting_operation:

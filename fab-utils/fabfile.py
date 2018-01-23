@@ -18,6 +18,7 @@ from fabric.operations import *
 from fabfile_rpi import *
 from fabfile_docker import *
 from fabfile_git import *
+from fabfile_common import *
 
 RUNNING_HOST = 'pi@192.168.88.180'
 env.user = 'testuser'
@@ -35,17 +36,6 @@ SSH_PUB_KEY_FILE = os.path.sep.join([
 RPI_AUTH_KEY_FILENAME = 'authorized_keys'
 DOT_SSH_PATH = 'home/pi/.ssh'
 
-
-# NOTE:
-# https://tinklabs.atlassian.net/wiki/spaces/ENG/pages/67829777/setup+test+environment+on+linux
-
-PROJ_HOME = 'docker-appium-raspberrypi'
-REMOTE_DOCKER_FILE_DIR = '/home/docker-files'
-
-LOCAL_DIR, REMOTE_DIR = (
-    '/home/logic/_workspace/docker-files/' + PROJ_HOME,
-    REMOTE_DOCKER_FILE_DIR + '/' + PROJ_HOME
-)
 
 git_repo_URL = 'https://github.com/louiscklaw/docker-appium-raspberrypi.git'
 
@@ -87,23 +77,6 @@ def git_push_remote_pull():
             run('git checkout -f develop')
 
     docker_compose_rebuild()
-
-
-def perform_put(input_local_dir=LOCAL_DIR, input_remote_dir=REMOTE_DIR):
-    """rsync for use with fabric"""
-
-    exclude_list = ['.git', '.vscode', '_ref']
-    cmd_exclude_param = ' '.join(['--exclude %s' % exclude_item for exclude_item in exclude_list])
-
-    # rsync_project(
-    #     local_dir=input_local_dir ,
-    #     remote_dir=input_remote_dir,
-    #     exclude=exclude_list,
-    #     delete=True
-    # )
-    put(input_local_dir, input_remote_dir)
-
-    sleep(1)
 
 
 def push_image():

@@ -14,6 +14,7 @@ from fabric.colors import *
 from fabric.contrib.project import *
 from fabric.contrib.files import *
 from fabric.operations import *
+from fabfile_common import *
 
 
 class cls_docker:
@@ -23,14 +24,29 @@ class cls_docker:
     def init_reboot(self):
         reboot()
 
-    @task
+    def perform_put(input_local_dir=LOCAL_DIR, input_remote_dir=REMOTE_DIR):
+        """rsync for use with fabric"""
+
+        exclude_list = ['.git', '.vscode', '_ref']
+        cmd_exclude_param = ' '.join(['--exclude %s' % exclude_item for exclude_item in exclude_list])
+
+        # rsync_project(
+        #     local_dir=input_local_dir ,
+        #     remote_dir=input_remote_dir,
+        #     exclude=exclude_list,
+        #     delete=True
+        # )
+        put(input_local_dir, input_remote_dir)
+
+        sleep(1)
+
     def put_docker_files(self):
         print(self_configuration.text_status('creating docker workspace'))
         with settings(warn_only=True):
             sudo('mkdir /home/docker-files')
             sudo('chown pi:pi /home/docker-files')
             sudo('chmod 775 /home/docker-files')
-        perform_put('docker-files/', '/home')
+        put(LOCAL_DOCKER_FILE_DIR, '/home')
         return self
 
     def install_docker(self, list_of_users_tobein_docker_group=['pi']):
