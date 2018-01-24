@@ -81,7 +81,7 @@ class rpi_init:
             'python3', 'python3-pip',
             'python', 'python-pip',
             'unzip', 'rsync',
-            'htop', 'glances'
+            'htop', 'glances', 'unattended-upgrades'
         ])
         sudo('apt clean')
 
